@@ -25,35 +25,25 @@ class Fish {
     this.size = 40;
   }
 
-  // Local AI swimming
-  initAI() {
-    this.targetAngle = this.angle;
+  // Local player control
+  initPlayer() {
     this.speed = 2.5;
-    this.turnSpeed = 0.02;
-    this.directionTimer = 0;
-    this.directionInterval = randomBetween(80, 200);
-    this._isLocal = true;
+    this.turnRate = 0.045;
   }
 
-  updateAI() {
-    this.directionTimer++;
-    if (this.directionTimer >= this.directionInterval) {
-      this.directionTimer = 0;
-      this.directionInterval = randomBetween(80, 200);
-      this.targetAngle = Math.random() * Math.PI * 2;
-    }
+  updatePlayer() {
+    if (keys['ArrowLeft'])  this.angle -= this.turnRate;
+    if (keys['ArrowRight']) this.angle += this.turnRate;
 
-    const margin = 100;
-    if (this.x < margin) this.targetAngle = lerpAngle(this.targetAngle, 0, 0.05);
-    if (this.x > canvas.width - margin) this.targetAngle = lerpAngle(this.targetAngle, Math.PI, 0.05);
-    if (this.y < margin) this.targetAngle = lerpAngle(this.targetAngle, Math.PI / 2, 0.05);
-    if (this.y > canvas.height - margin) this.targetAngle = lerpAngle(this.targetAngle, -Math.PI / 2, 0.05);
-
-    this.angle = lerpAngle(this.angle, this.targetAngle, this.turnSpeed);
     this.x += Math.cos(this.angle) * this.speed;
     this.y += Math.sin(this.angle) * this.speed;
-    this.x = Math.max(20, Math.min(canvas.width - 20, this.x));
-    this.y = Math.max(20, Math.min(canvas.height - 20, this.y));
+
+    // Wrap around screen edges
+    if (this.x < -this.size)              this.x = canvas.width  + this.size;
+    if (this.x > canvas.width  + this.size) this.x = -this.size;
+    if (this.y < -this.size)              this.y = canvas.height + this.size;
+    if (this.y > canvas.height + this.size) this.y = -this.size;
+
     this.tailAngle = Math.sin(Date.now() * 0.18) * 0.4;
   }
 
@@ -199,6 +189,14 @@ function drawBackground() {
   ctx.restore();
 }
 
+// --- Keyboard state ---
+const keys = {};
+window.addEventListener('keydown', (e) => {
+  if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
+  keys[e.key] = true;
+});
+window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
 // --- State ---
 const bubbles = Array.from({ length: 20 }, () => {
   const b = new Bubble();
@@ -278,7 +276,7 @@ function joinGame() {
     y: randomBetween(200, canvas.height - 200),
     angle: Math.random() * Math.PI * 2,
   });
-  localFish.initAI();
+  localFish.initPlayer();
 
   // Connect to server; color will be set on init response — for now fish swims immediately
   connect(name);
@@ -287,9 +285,6 @@ function joinGame() {
 
 joinBtn.addEventListener('click', joinGame);
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinGame(); });
-
-// Patch local fish color after init arrives
-const _origConnect = connect;
 
 // --- Game loop ---
 function loop() {
@@ -303,7 +298,7 @@ function loop() {
 
   // Draw & update local fish
   if (localFish) {
-    localFish.updateAI();
+    localFish.updatePlayer();
     localFish.draw(true);
 
     // Send state to server
