@@ -83,9 +83,43 @@ wss.on('connection', (ws) => {
         y: msg.y,
         angle: msg.angle,
         tailAngle: 0,
+        size: 40,
       };
       // Tell everyone else a new fish joined
       broadcastExcept(id, { type: 'join', fish: fishes[id] });
+    }
+
+    if (msg.type === 'kill') {
+      const attacker = fishes[id];
+      const victim = fishes[msg.victimId];
+      if (!attacker || !victim) return;
+      if (attacker.size <= victim.size) return; // server validates
+
+      // Grow attacker
+      attacker.size = Math.min(attacker.size + Math.floor(victim.size * 0.3), 200);
+      broadcast({ type: 'size_update', id, size: attacker.size });
+
+      // Respawn victim at random position
+      const respawnX = Math.random() * 1600 + 100;
+      const respawnY = Math.random() * 900 + 100;
+      victim.size = 40;
+      victim.x = respawnX;
+      victim.y = respawnY;
+
+      // Tell victim they were eaten
+      wss.clients.forEach(client => {
+        if (client.fishId === msg.victimId && client.readyState === 1) {
+          client.send(JSON.stringify({
+            type: 'respawn',
+            killedBy: attacker.name,
+            x: respawnX,
+            y: respawnY,
+          }));
+        }
+      });
+
+      // Tell everyone else victim respawned
+      broadcastExcept(msg.victimId, { type: 'size_update', id: msg.victimId, size: 40 });
     }
 
     if (msg.type === 'eat') {
@@ -104,8 +138,9 @@ wss.on('connection', (ws) => {
       fishes[id].y = msg.y;
       fishes[id].angle = msg.angle;
       fishes[id].tailAngle = msg.tailAngle;
+      if (msg.size) fishes[id].size = Math.min(msg.size, 200);
       // Broadcast updated state to everyone else
-      broadcastExcept(id, { type: 'update', id, x: msg.x, y: msg.y, angle: msg.angle, tailAngle: msg.tailAngle });
+      broadcastExcept(id, { type: 'update', id, x: msg.x, y: msg.y, angle: msg.angle, tailAngle: msg.tailAngle, size: fishes[id].size });
     }
   });
 

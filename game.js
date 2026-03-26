@@ -53,6 +53,7 @@ class Fish {
     this.y = data.y;
     this.angle = data.angle;
     this.tailAngle = data.tailAngle;
+    if (data.size) this.size = data.size;
   }
 
   draw(isLocal = false) {
@@ -223,6 +224,54 @@ function drawFood() {
   }
 }
 
+// --- Kill feed ---
+const killFeed = []; // { text, alpha, y }
+
+function showKillMessage(text) {
+  killFeed.push({ text, alpha: 1, y: canvas.height / 2 - 40 });
+}
+
+function drawKillFeed() {
+  for (let i = killFeed.length - 1; i >= 0; i--) {
+    const k = killFeed[i];
+    k.alpha -= 0.008;
+    k.y -= 0.4;
+    if (k.alpha <= 0) { killFeed.splice(i, 1); continue; }
+    ctx.save();
+    ctx.globalAlpha = k.alpha;
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff4444';
+    ctx.fillText(k.text, canvas.width / 2, k.y);
+    ctx.restore();
+  }
+}
+
+// --- Player collision ---
+function checkPlayerCollision() {
+  if (!localFish) return;
+  // Head position (front of fish)
+  const hx = localFish.x + Math.cos(localFish.angle) * localFish.size * 0.8;
+  const hy = localFish.y + Math.sin(localFish.angle) * localFish.size * 0.8;
+
+  for (const remote of Object.values(remoteFishes)) {
+    const dx = hx - remote.x;
+    const dy = hy - remote.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const collideRange = (localFish.size + remote.size) * 0.5;
+    if (dist < collideRange) {
+      if (localFish.size > remote.size * 1.1) {
+        // We eat them
+        localFish.size = Math.min(localFish.size + Math.floor(remote.size * 0.3), 200);
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'kill', victimId: remote.id }));
+        }
+        showKillMessage(`You ate ${remote.name}!`);
+      }
+    }
+  }
+}
+
 function checkFoodCollision() {
   if (!localFish) return;
   for (const pellet of Object.values(foodPellets)) {
@@ -294,6 +343,21 @@ function connect(name) {
       updatePlayerCount();
     }
 
+    if (msg.type === 'respawn') {
+      // We were eaten — reset position and size
+      if (localFish) {
+        localFish.x = msg.x;
+        localFish.y = msg.y;
+        localFish.angle = Math.random() * Math.PI * 2;
+        localFish.size = 40;
+        showKillMessage(`You were eaten by ${msg.killedBy}!`);
+      }
+    }
+
+    if (msg.type === 'size_update') {
+      if (remoteFishes[msg.id]) remoteFishes[msg.id].size = msg.size;
+    }
+
     if (msg.type === 'food_add') {
       foodPellets[msg.pellet.id] = msg.pellet;
     }
@@ -343,6 +407,8 @@ function loop() {
 
   drawFood();
   checkFoodCollision();
+  checkPlayerCollision();
+  drawKillFeed();
 
   // Draw remote fish
   for (const fish of Object.values(remoteFishes)) {
@@ -364,6 +430,7 @@ function loop() {
         y: localFish.y,
         angle: localFish.angle,
         tailAngle: localFish.tailAngle,
+        size: localFish.size,
       }));
     }
   }
