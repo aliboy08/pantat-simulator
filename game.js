@@ -4,6 +4,10 @@ const lobby = document.getElementById('lobby');
 const joinBtn = document.getElementById('join-btn');
 const nameInput = document.getElementById('name-input');
 const playerCountEl = document.getElementById('player-count');
+const chatLog = document.getElementById('chat-log');
+const chatInputWrap = document.getElementById('chat-input-wrap');
+const chatInput = document.getElementById('chat-input');
+const chatHint = document.getElementById('chat-hint');
 
 function resize() {
   canvas.width = window.innerWidth;
@@ -193,6 +197,8 @@ function drawBackground() {
 // --- Keyboard state ---
 const keys = {};
 window.addEventListener('keydown', (e) => {
+  if (document.activeElement === chatInput) return;
+  if (e.key === 'Enter' && localFish) { openChat(); return; }
   if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
   keys[e.key] = true;
 });
@@ -223,6 +229,101 @@ function drawFood() {
     ctx.fill();
   }
 }
+
+// --- Chat ---
+const chatBubbles = {}; // fishId -> { text, timer }
+const BUBBLE_DURATION = 5000; // ms
+
+function addChatBubble(fishId, text) {
+  chatBubbles[fishId] = { text, born: Date.now() };
+}
+
+function drawChatBubbles() {
+  const now = Date.now();
+  for (const [fishId, bubble] of Object.entries(chatBubbles)) {
+    const age = now - bubble.born;
+    if (age > BUBBLE_DURATION) { delete chatBubbles[fishId]; continue; }
+
+    const fish = fishId === 'local' ? localFish : remoteFishes[fishId];
+    if (!fish) continue;
+
+    const alpha = age > BUBBLE_DURATION * 0.7
+      ? 1 - (age - BUBBLE_DURATION * 0.7) / (BUBBLE_DURATION * 0.3)
+      : 1;
+
+    const bx = fish.x;
+    const by = fish.y - fish.size * 1.4;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    const tw = Math.min(ctx.measureText(bubble.text).width, 180);
+    const bw = tw + 20;
+    const bh = 26;
+
+    // Bubble background
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.beginPath();
+    ctx.roundRect(bx - bw / 2, by - bh, bw, bh, 6);
+    ctx.fill();
+
+    // Tail
+    ctx.beginPath();
+    ctx.moveTo(bx - 6, by);
+    ctx.lineTo(bx + 6, by);
+    ctx.lineTo(bx, by + 8);
+    ctx.closePath();
+    ctx.fill();
+
+    // Text
+    ctx.fillStyle = '#111';
+    ctx.fillText(bubble.text, bx, by - 7, 180);
+    ctx.restore();
+  }
+}
+
+function addChatLogEntry(name, text) {
+  const entry = document.createElement('div');
+  entry.className = 'chat-entry';
+  entry.innerHTML = `<span>${name}:</span> ${text}`;
+  chatLog.appendChild(entry);
+  // Keep only last 5 messages
+  while (chatLog.children.length > 5) chatLog.removeChild(chatLog.firstChild);
+  // Fade out after 8s
+  setTimeout(() => entry.style.opacity = '0', 8000);
+  setTimeout(() => entry.remove(), 8500);
+}
+
+function openChat() {
+  chatInputWrap.style.display = 'block';
+  chatHint.style.display = 'none';
+  chatInput.value = '';
+  chatInput.focus();
+}
+
+function closeChat() {
+  chatInputWrap.style.display = 'none';
+  chatHint.style.display = 'block';
+  canvas.focus();
+}
+
+function sendChat() {
+  const text = chatInput.value.trim();
+  closeChat();
+  if (!text || !localFish) return;
+  addChatBubble('local', text);
+  addChatLogEntry(localFish.name, text);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'chat', text }));
+  }
+}
+
+chatInput.addEventListener('keydown', (e) => {
+  e.stopPropagation(); // prevent game keys while typing
+  if (e.key === 'Enter') sendChat();
+  if (e.key === 'Escape') closeChat();
+});
 
 // --- Kill feed ---
 const killFeed = []; // { text, alpha, y }
@@ -358,6 +459,14 @@ function connect(name) {
       if (remoteFishes[msg.id]) remoteFishes[msg.id].size = msg.size;
     }
 
+    if (msg.type === 'chat') {
+      const sender = remoteFishes[msg.id];
+      if (sender) {
+        addChatBubble(msg.id, msg.text);
+        addChatLogEntry(sender.name, msg.text);
+      }
+    }
+
     if (msg.type === 'food_add') {
       foodPellets[msg.pellet.id] = msg.pellet;
     }
@@ -419,6 +528,11 @@ function loop() {
   if (localFish) {
     localFish.updatePlayer();
     localFish.draw(true);
+  }
+
+  drawChatBubbles();
+
+  if (localFish) {
 
     // Send state to server
     const now = Date.now();

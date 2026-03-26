@@ -89,6 +89,12 @@ wss.on('connection', (ws) => {
       broadcastExcept(id, { type: 'join', fish: fishes[id] });
     }
 
+    if (msg.type === 'chat') {
+      const text = String(msg.text || '').slice(0, 80);
+      if (!text) return;
+      broadcast({ type: 'chat', id, text });
+    }
+
     if (msg.type === 'kill') {
       const attacker = fishes[id];
       const victim = fishes[msg.victimId];
