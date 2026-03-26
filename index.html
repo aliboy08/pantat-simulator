@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pantat Simulator</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #lobby {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 20, 50, 0.88);
+      z-index: 10;
+    }
+
+    #lobby-box {
+      background: rgba(10, 30, 70, 0.95);
+      border: 1px solid rgba(100, 180, 255, 0.3);
+      border-radius: 12px;
+      padding: 40px 48px;
+      text-align: center;
+      color: #cce8ff;
+      min-width: 300px;
+    }
+
+    #lobby-box h1 {
+      font-size: 1.6rem;
+      margin-bottom: 8px;
+      color: #7dd4fc;
+      letter-spacing: 1px;
+    }
+
+    #lobby-box p {
+      font-size: 0.85rem;
+      color: #88aacc;
+      margin-bottom: 24px;
+    }
+
+    #lobby-box input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(100, 180, 255, 0.4);
+      background: rgba(0, 20, 60, 0.8);
+      color: #fff;
+      font-size: 1rem;
+      outline: none;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    #lobby-box input:focus {
+      border-color: #7dd4fc;
+    }
+
+    #lobby-box button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      background: #1d6fa8;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #lobby-box button:hover {
+      background: #2a8fd4;
+    }
+
+    #player-count {
+      position: fixed;
+      top: 14px;
+      right: 18px;
+      color: rgba(180, 220, 255, 0.7);
+      font-size: 0.8rem;
+      z-index: 5;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="lobby">
+    <div id="lobby-box">
+      <h1>Fish Simulator</h1>
+      <p>Enter your name to join the ocean</p>
+      <input id="name-input" type="text" maxlength="20" placeholder="Your fish name..." autofocus />
+      <button id="join-btn">Dive In</button>
+    </div>
+  </div>
+
+  <div id="player-count"></div>
+
+  <script src="game.js"></script>
+</body>
+
+</html>
