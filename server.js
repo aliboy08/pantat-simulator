@@ -25,6 +25,18 @@ const COLORS = [
 
 const fishes = {}; // id -> fish state
 
+// --- Food ---
+const FOOD_COUNT = 40;
+const food = {}; // id -> { id, x, y }
+
+function spawnFood() {
+  const id = randomUUID();
+  food[id] = { id, x: Math.random() * 2000, y: Math.random() * 1200 };
+  return food[id];
+}
+
+for (let i = 0; i < FOOD_COUNT; i++) spawnFood();
+
 function broadcast(data) {
   const msg = JSON.stringify(data);
   wss.clients.forEach(client => {
@@ -48,12 +60,13 @@ wss.on('connection', (ws) => {
   const colorIndex = Object.keys(fishes).length % COLORS.length;
   const color = COLORS[colorIndex];
 
-  // Send init: assign ID + current fish list
+  // Send init: assign ID + current fish list + food
   ws.send(JSON.stringify({
     type: 'init',
     id,
     color,
     fishes,
+    food,
   }));
 
   ws.on('message', (raw) => {
@@ -73,6 +86,16 @@ wss.on('connection', (ws) => {
       };
       // Tell everyone else a new fish joined
       broadcastExcept(id, { type: 'join', fish: fishes[id] });
+    }
+
+    if (msg.type === 'eat') {
+      const pellet = food[msg.foodId];
+      if (!pellet) return;
+      delete food[msg.foodId];
+      broadcast({ type: 'food_remove', id: msg.foodId });
+      // Spawn a replacement
+      const newPellet = spawnFood();
+      broadcast({ type: 'food_add', pellet: newPellet });
     }
 
     if (msg.type === 'update') {

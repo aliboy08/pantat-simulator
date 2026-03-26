@@ -197,6 +197,48 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
+// --- Food ---
+let foodPellets = {}; // id -> { id, x, y }
+
+function drawFood() {
+  const t = Date.now() * 0.004;
+  for (const pellet of Object.values(foodPellets)) {
+    const pulse = 1 + Math.sin(t + pellet.x) * 0.3;
+    const r = 5 * pulse;
+
+    // Glow
+    const glow = ctx.createRadialGradient(pellet.x, pellet.y, 0, pellet.x, pellet.y, r * 2.5);
+    glow.addColorStop(0, 'rgba(160, 255, 100, 0.6)');
+    glow.addColorStop(1, 'rgba(160, 255, 100, 0)');
+    ctx.beginPath();
+    ctx.arc(pellet.x, pellet.y, r * 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    // Core
+    ctx.beginPath();
+    ctx.arc(pellet.x, pellet.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#aaff55';
+    ctx.fill();
+  }
+}
+
+function checkFoodCollision() {
+  if (!localFish) return;
+  for (const pellet of Object.values(foodPellets)) {
+    const dx = localFish.x - pellet.x;
+    const dy = localFish.y - pellet.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < localFish.size * 0.9) {
+      delete foodPellets[pellet.id];
+      localFish.size = Math.min(localFish.size + 3, 120);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'eat', foodId: pellet.id }));
+      }
+    }
+  }
+}
+
 // --- State ---
 const bubbles = Array.from({ length: 20 }, () => {
   const b = new Bubble();
@@ -229,10 +271,10 @@ function connect(name) {
     const msg = JSON.parse(e.data);
 
     if (msg.type === 'init') {
-      // Populate existing remote fish
       for (const [id, data] of Object.entries(msg.fishes)) {
         remoteFishes[id] = new Fish(data);
       }
+      foodPellets = msg.food || {};
       updatePlayerCount();
     }
 
@@ -250,6 +292,14 @@ function connect(name) {
     if (msg.type === 'leave') {
       delete remoteFishes[msg.id];
       updatePlayerCount();
+    }
+
+    if (msg.type === 'food_add') {
+      foodPellets[msg.pellet.id] = msg.pellet;
+    }
+
+    if (msg.type === 'food_remove') {
+      delete foodPellets[msg.id];
     }
   });
 
@@ -290,6 +340,9 @@ nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinGame()
 function loop() {
   drawBackground();
   bubbles.forEach(b => { b.update(); b.draw(); });
+
+  drawFood();
+  checkFoodCollision();
 
   // Draw remote fish
   for (const fish of Object.values(remoteFishes)) {
