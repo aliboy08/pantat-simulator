@@ -32,8 +32,8 @@ class Fish {
   }
 
   updatePlayer() {
-    if (keys['ArrowLeft'])  this.angle -= this.turnRate;
-    if (keys['ArrowRight']) this.angle += this.turnRate;
+    if (keys['ArrowLeft']  || keys['a'] || keys['A']) this.angle -= this.turnRate;
+    if (keys['ArrowRight'] || keys['d'] || keys['D']) this.angle += this.turnRate;
 
     this.x += Math.cos(this.angle) * this.speed;
     this.y += Math.sin(this.angle) * this.speed;
